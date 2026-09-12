@@ -1,0 +1,85 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600;700&display=swap");
+
+@theme {
+  /* -- Palette: hospitality dining-room, not a generic AI default -- */
+  --color-ink-900: #1c2530;
+  --color-ink-800: #24303d;
+  --color-ink-700: #34434f;
+  --color-ink-500: #5a6b78;
+  --color-ink-300: #98a5ae;
+
+  --color-linen-50: #faf8f3;
+  --color-linen-100: #f5f1e8;
+  --color-linen-200: #ece4d3;
+  --color-linen-300: #ddd0b3;
+
+  --color-brass-400: #c39a52;
+  --color-brass-500: #a9823d;
+  --color-brass-600: #8a6a30;
+
+  --color-status-sangat: #1f5c63;
+  --color-status-sangat-soft: #e2eeed;
+  --color-status-kompeten: #3f6b52;
+  --color-status-kompeten-soft: #e6efe6;
+  --color-status-cukup: #a3721c;
+  --color-status-cukup-soft: #f6ecd8;
+  --color-status-belum: #a23e34;
+  --color-status-belum-soft: #f5e4e0;
+
+  --font-display: "Fraunces", "Iowan Old Style", serif;
+  --font-body: "Work Sans", "Segoe UI", sans-serif;
+}
+
+html {
+  font-family: var(--font-body);
+}
+
+body {
+  background-color: var(--color-linen-100);
+  color: var(--color-ink-900);
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
+/* Table-setting hero animation: cutlery + glass settle into place */
+@keyframes settle-in {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes gleam {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.55; }
+}
+
+.tablesetting-piece {
+  animation: settle-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.tablesetting-gleam {
+  animation: gleam 3400ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tablesetting-piece, .tablesetting-gleam {
+    animation: none !important;
+  }
+}
+
+/* Scrollbar - subtle, matches ink palette */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--color-ink-300); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-brass-500);
+  outline-offset: 2px;
+}
