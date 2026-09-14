@@ -21,7 +21,7 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/Digitavra-Digital-CBA">
       <AuthProvider>
         <Routes>
           <Route path="/" element={<RootRedirect />} />
