@@ -1,8 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageShell from "../../components/PageShell";
 import StatusDistributionChart from "../../components/StatusDistributionChart";
-import { USERS } from "../../lib/mockData";
-import { loadAssessments } from "../../lib/storage";
+import { fetchUsers, fetchAssessments } from "../../lib/supabaseData";
 import { categoryBreakdown, generateFeedback, STATUS_LEVELS } from "../../lib/scoring";
 import { RUBRIC } from "../../lib/rubric";
 
@@ -12,8 +11,35 @@ function average(nums) {
 }
 
 export default function GMDashboard() {
-  const trainees = USERS.filter((u) => u.role === "trainee");
-  const assessments = loadAssessments();
+  const [users, setUsers] = useState([]);
+  const [assessments, setAssessments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [u, a] = await Promise.all([fetchUsers(), fetchAssessments()]);
+        if (!cancelled) {
+          setUsers(u);
+          setAssessments(a);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Gagal memuat data dari Supabase.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const trainees = useMemo(() => users.filter((u) => u.role === "trainee"), [users]);
 
   const latestPerTrainee = useMemo(() => {
     return trainees
@@ -24,7 +50,7 @@ export default function GMDashboard() {
         return list[0] ? { trainee: t, assessment: list[0] } : null;
       })
       .filter(Boolean);
-  }, [trainees, assessments]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [trainees, assessments]);
 
   const statusCounts = useMemo(() => {
     const counts = {};
@@ -43,7 +69,23 @@ export default function GMDashboard() {
       });
       return { category: cat.category, percent: average(percents) };
     });
-  }, [latestPerTrainee]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [latestPerTrainee]);
+
+  if (loading) {
+    return (
+      <PageShell title="Ringkasan Kompetensi" subtitle="Memuat data...">
+        <p className="text-sm text-ink-500">Memuat data dari Supabase...</p>
+      </PageShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageShell title="Ringkasan Kompetensi" subtitle="Terjadi kesalahan">
+        <p className="text-sm text-status-belum">{error}</p>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell

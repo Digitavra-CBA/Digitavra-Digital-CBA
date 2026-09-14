@@ -1,10 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/PageShell";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
-import { USERS } from "../../lib/mockData";
-import { loadAssessments } from "../../lib/storage";
+import { fetchUsers, fetchAssessments } from "../../lib/supabaseData";
 import { generateFeedback } from "../../lib/scoring";
 import { periodLabel } from "../../lib/months";
 import { ClipboardPen } from "lucide-react";
@@ -13,17 +12,64 @@ export default function SupervisorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const myTrainees = useMemo(
-    () => USERS.filter((u) => u.role === "trainee" && u.supervisorId === user.id),
-    [user.id]
-  );
+  const [users, setUsers] = useState([]);
+  const [assessments, setAssessments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const assessments = loadAssessments();
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [usersData, assessmentsData] = await Promise.all([
+          fetchUsers(),
+          fetchAssessments(),
+        ]);
+        if (!cancelled) {
+          setUsers(usersData);
+          setAssessments(assessmentsData);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Gagal memuat data dari Supabase.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const myTrainees = useMemo(
+    () => users.filter((u) => u.role === "trainee" && u.supervisorId === user.id),
+    [users, user.id]
+  );
 
   function latestFor(traineeId) {
     return assessments
       .filter((a) => a.traineeId === traineeId)
       .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+  }
+
+  if (loading) {
+    return (
+      <PageShell title="Trainee Bimbingan" subtitle="Memuat data...">
+        <p className="text-sm text-ink-500">Memuat data dari Supabase...</p>
+      </PageShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageShell title="Trainee Bimbingan" subtitle="Terjadi kesalahan">
+        <p className="text-sm text-status-belum">{error}</p>
+      </PageShell>
+    );
   }
 
   return (

@@ -1,9 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/PageShell";
 import StatusBadge from "../../components/StatusBadge";
-import { USERS } from "../../lib/mockData";
-import { loadAssessments } from "../../lib/storage";
+import { fetchUsers, fetchAssessments } from "../../lib/supabaseData";
 import { generateFeedback, STATUS_LEVELS } from "../../lib/scoring";
 import { periodStartLabel, periodEndLabel } from "../../lib/months";
 import { Search } from "lucide-react";
@@ -14,9 +13,36 @@ export default function GMMonitoring() {
   const [supervisorFilter, setSupervisorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const trainees = USERS.filter((u) => u.role === "trainee");
-  const supervisors = USERS.filter((u) => u.role === "supervisor");
-  const assessments = loadAssessments();
+  const [users, setUsers] = useState([]);
+  const [assessments, setAssessments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [u, a] = await Promise.all([fetchUsers(), fetchAssessments()]);
+        if (!cancelled) {
+          setUsers(u);
+          setAssessments(a);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Gagal memuat data dari Supabase.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const trainees = useMemo(() => users.filter((u) => u.role === "trainee"), [users]);
+  const supervisors = useMemo(() => users.filter((u) => u.role === "supervisor"), [users]);
 
   const rows = useMemo(() => {
     return trainees
@@ -25,13 +51,29 @@ export default function GMMonitoring() {
           .filter((a) => a.traineeId === t.id)
           .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
         const feedback = latest ? generateFeedback(latest.scores) : null;
-        const supervisor = USERS.find((u) => u.id === t.supervisorId);
+        const supervisor = users.find((u) => u.id === t.supervisorId);
         return { trainee: t, latest, feedback, supervisor };
       })
       .filter((r) => r.trainee.name.toLowerCase().includes(query.toLowerCase()))
       .filter((r) => supervisorFilter === "all" || r.supervisor?.id === supervisorFilter)
       .filter((r) => statusFilter === "all" || r.feedback?.status.key === statusFilter);
-  }, [trainees, assessments, query, supervisorFilter, statusFilter]); // eslint-disable-line
+  }, [trainees, assessments, users, query, supervisorFilter, statusFilter]);
+
+  if (loading) {
+    return (
+      <PageShell title="Monitoring Trainee" subtitle="Memuat data...">
+        <p className="text-sm text-ink-500">Memuat data dari Supabase...</p>
+      </PageShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageShell title="Monitoring Trainee" subtitle="Terjadi kesalahan">
+        <p className="text-sm text-status-belum">{error}</p>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell title="Monitoring Trainee" subtitle="Seluruh hasil penilaian trainee pada kompetensi Table Set-Up">

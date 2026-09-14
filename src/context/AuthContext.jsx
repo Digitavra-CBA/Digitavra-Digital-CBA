@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { USERS } from "../lib/mockData";
+import { fetchUserByUsername } from "../lib/supabaseData";
 import { getSession, setSession, clearSession } from "../lib/storage";
 
 const AuthContext = createContext(null);
@@ -11,15 +11,19 @@ export function AuthProvider({ children }) {
     if (user) setSession(user);
   }, [user]);
 
-  function login(username, password) {
-    const found = USERS.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase() && u.password === password
-    );
-    if (!found) return { ok: false, error: "Username atau password salah." };
-    const { password: _pw, ...safeUser } = found;
-    setUser(safeUser);
-    setSession(safeUser);
-    return { ok: true, user: safeUser };
+  async function login(username, password) {
+    try {
+      const found = await fetchUserByUsername(username.trim());
+      if (!found || found.password !== password) {
+        return { ok: false, error: "Username atau password salah." };
+      }
+      const { password: _pw, ...safeUser } = found;
+      setUser(safeUser);
+      setSession(safeUser);
+      return { ok: true, user: safeUser };
+    } catch (err) {
+      return { ok: false, error: "Gagal terhubung ke server. Coba lagi." };
+    }
   }
 
   function logout() {

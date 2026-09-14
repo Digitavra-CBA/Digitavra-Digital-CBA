@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/PageShell";
 import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
-import { USERS } from "../../lib/mockData";
-import { loadAssessments } from "../../lib/storage";
+import { fetchUsers, fetchAssessments } from "../../lib/supabaseData";
 import { generateFeedback } from "../../lib/scoring";
 import { periodLabel } from "../../lib/months";
 
@@ -13,14 +12,61 @@ export default function SupervisorHistory() {
   const navigate = useNavigate();
   const [traineeFilter, setTraineeFilter] = useState("all");
 
-  const myTrainees = USERS.filter((u) => u.role === "trainee" && u.supervisorId === user.id);
+  const [users, setUsers] = useState([]);
+  const [assessments, setAssessments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [u, a] = await Promise.all([fetchUsers(), fetchAssessments()]);
+        if (!cancelled) {
+          setUsers(u);
+          setAssessments(a);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Gagal memuat data dari Supabase.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const myTrainees = useMemo(
+    () => users.filter((u) => u.role === "trainee" && u.supervisorId === user.id),
+    [users, user.id]
+  );
 
   const rows = useMemo(() => {
-    return loadAssessments()
+    return assessments
       .filter((a) => a.supervisorId === user.id)
       .filter((a) => traineeFilter === "all" || a.traineeId === traineeFilter)
       .sort((a, b) => (a.date < b.date ? 1 : -1));
-  }, [user.id, traineeFilter]);
+  }, [assessments, user.id, traineeFilter]);
+
+  if (loading) {
+    return (
+      <PageShell title="Riwayat Penilaian" subtitle="Memuat data...">
+        <p className="text-sm text-ink-500">Memuat data dari Supabase...</p>
+      </PageShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageShell title="Riwayat Penilaian" subtitle="Terjadi kesalahan">
+        <p className="text-sm text-status-belum">{error}</p>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell title="Riwayat Penilaian" subtitle="Penilaian yang pernah Anda buat">
@@ -54,7 +100,7 @@ export default function SupervisorHistory() {
             </thead>
             <tbody>
               {rows.map((a) => {
-                const trainee = USERS.find((u) => u.id === a.traineeId);
+                const trainee = users.find((u) => u.id === a.traineeId);
                 const { status, nilai } = generateFeedback(a.scores);
                 return (
                   <tr key={a.id} className="border-b border-linen-100 last:border-none">

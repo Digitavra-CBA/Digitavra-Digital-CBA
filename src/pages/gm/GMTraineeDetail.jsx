@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PageShell from "../../components/PageShell";
 import AssessmentSummary from "../../components/AssessmentSummary";
 import AssessmentForm from "../../components/AssessmentForm";
 import { useAuth } from "../../context/AuthContext";
-import { USERS } from "../../lib/mockData";
-import { loadAssessments, upsertAssessment, nextAssessmentId } from "../../lib/storage";
+import { fetchUsers, fetchAssessmentsForTrainee, upsertAssessmentRemote } from "../../lib/supabaseData";
+import { nextAssessmentId } from "../../lib/storage";
 import { exportAssessmentPdf } from "../../lib/pdfExport";
 import { ArrowLeft, Pencil, CheckCircle2 } from "lucide-react";
 
@@ -17,30 +17,59 @@ export default function GMTraineeDetail() {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const trainee = USERS.find((u) => u.id === traineeId);
-  const assessments = loadAssessments();
-  const latest = useMemo(
-    () =>
-      assessments
-        .filter((a) => a.traineeId === traineeId)
-        .sort((a, b) => (a.date < b.date ? 1 : -1))[0],
-    [traineeId] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const supervisor = USERS.find((u) => u.id === latest?.supervisorId);
+  const [users, setUsers] = useState([]);
+  const [assessments, setAssessments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  function handleSubmit(payload) {
-    const list = loadAssessments();
-    const id = latest ? latest.id : nextAssessmentId(list);
-    upsertAssessment({
-      id,
-      traineeId,
-      supervisorId: latest?.supervisorId || null,
-      lastEditedBy: user.id,
-      ...payload,
-    });
-    setSaved(true);
-    setEditing(false);
-    setTimeout(() => setSaved(false), 2500);
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+    try {
+      const [u, a] = await Promise.all([fetchUsers(), fetchAssessmentsForTrainee(traineeId)]);
+      setUsers(u);
+      setAssessments(a);
+    } catch (err) {
+      setError(err.message || "Gagal memuat data dari Supabase.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [traineeId]);
+
+  const trainee = users.find((u) => u.id === traineeId);
+  const latest = assessments[0]; // fetchAssessmentsForTrainee sudah urut terbaru duluan
+  const supervisor = users.find((u) => u.id === latest?.supervisorId);
+
+  async function handleSubmit(payload) {
+    const id = latest ? latest.id : nextAssessmentId();
+    try {
+      await upsertAssessmentRemote({
+        id,
+        traineeId,
+        supervisorId: latest?.supervisorId || null,
+        lastEditedBy: user.id,
+        ...payload,
+      });
+      await loadData();
+      setSaved(true);
+      setEditing(false);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err.message || "Gagal menyimpan penilaian.");
+    }
+  }
+
+  if (loading) {
+    return (
+      <PageShell title="Memuat..." subtitle="Mengambil data trainee">
+        <p className="text-sm text-ink-500">Memuat data dari Supabase...</p>
+      </PageShell>
+    );
   }
 
   if (!trainee) {
@@ -76,6 +105,12 @@ export default function GMTraineeDetail() {
         </div>
       }
     >
+      {error && (
+        <div className="mb-6 rounded-lg bg-status-belum-soft px-4 py-3 text-sm text-status-belum">
+          {error}
+        </div>
+      )}
+
       {saved && (
         <div className="mb-6 flex items-center gap-2 rounded-lg bg-status-kompeten-soft px-4 py-3 text-sm text-status-kompeten">
           <CheckCircle2 size={16} />

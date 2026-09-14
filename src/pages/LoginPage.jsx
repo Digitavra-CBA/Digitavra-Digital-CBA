@@ -2,10 +2,18 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import TableSettingHero from "../components/TableSettingHero";
-import { USERS } from "../lib/mockData";
 import { LogIn } from "lucide-react";
 
 const ROLE_HOME = { trainee: "/trainee", supervisor: "/supervisor", gm: "/gm" };
+
+// Akun demo untuk tombol isi-cepat di halaman login.
+// Cuma perlu username & password (nilai yang memang sudah pasti/statis),
+// jadi tidak perlu query ke Supabase hanya untuk menampilkan 3 tombol ini.
+const DEMO_ACCOUNTS = [
+  { label: "Trainee — Zidan Ramadhan", username: "zidan.trainee", password: "trainee123" },
+  { label: "Supervisor — Dewi Anggraini", username: "dewi.supervisor", password: "super123" },
+  { label: "General Manager — Hendra Kusuma", username: "hendra.gm", password: "gm123" },
+];
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -13,15 +21,22 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    const result = login(username, password);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    setError("");
+    setSubmitting(true);
+    try {
+      const result = await login(username, password);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      navigate(ROLE_HOME[result.user.role]);
+    } finally {
+      setSubmitting(false);
     }
-    navigate(ROLE_HOME[result.user.role]);
   }
 
   function fillDemo(u) {
@@ -97,10 +112,11 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink-900 px-4 py-2.5 text-sm font-medium text-linen-50 transition-colors hover:bg-ink-800 focus-ring"
+              disabled={submitting}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink-900 px-4 py-2.5 text-sm font-medium text-linen-50 transition-colors hover:bg-ink-800 focus-ring disabled:opacity-60"
             >
               <LogIn size={16} />
-              Masuk
+              {submitting ? "Memproses..." : "Masuk"}
             </button>
           </form>
 
@@ -109,21 +125,17 @@ export default function LoginPage() {
               Akun demo
             </p>
             <div className="grid gap-1.5">
-              {USERS.filter((u) => ["u-trainee-1", "u-supervisor-1", "u-gm-1"].includes(u.id)).map(
-                (u) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => fillDemo(u)}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-700 transition-colors hover:bg-white focus-ring"
-                  >
-                    <span className="capitalize">
-                      {u.role === "gm" ? "General Manager" : u.role} — {u.name}
-                    </span>
-                    <span className="text-ink-500">{u.username}</span>
-                  </button>
-                )
-              )}
+              {DEMO_ACCOUNTS.map((u) => (
+                <button
+                  key={u.username}
+                  type="button"
+                  onClick={() => fillDemo(u)}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs text-ink-700 transition-colors hover:bg-white focus-ring"
+                >
+                  <span>{u.label}</span>
+                  <span className="text-ink-500">{u.username}</span>
+                </button>
+              ))}
             </div>
           </div>
 
